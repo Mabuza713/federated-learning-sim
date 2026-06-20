@@ -1,0 +1,93 @@
+# apiVersion określa wersję API. apps/v1 to stabilna wersja API dla kontrolerów takich jak Deployments czy StatefulSets.
+apiVersion: apps/v1
+
+# kind określa typ zasobu.
+# Deployment służy do deklaratywnego zarządzania zestawem identycznych Podów (kontenerów).
+# Dba o to, aby odpowiednia liczba podów działała w klastrze oraz zarządza ich aktualizacjami.
+kind: Deployment
+
+# metadata definiuje metadane dla samego wdrożenia (Deployment).
+metadata:
+  # Nazwa wdrożenia w Kubernetesie.
+  name: federated-sim-server
+
+# spec definiuje pożądany stan dla tego wdrożenia.
+spec:
+  # replicas określa ile kopii (Podów) tego serwera ma jednocześnie działać w klastrze.
+  replicas: 1
+
+  # selector wskazuje Kubernetesowi, które Pody należą do tego wdrożenia.
+  # Deployment zarządza tylko Podami pasującymi do tego selektora.
+  selector:
+    matchLabels:
+      app: federated-sim-server
+
+  # template to szablon opisujący jak mają wyglądać nowo tworzone Pody.
+  template:
+    # metadata dla tworzonych Podów. Muszą one posiadać etykiety pasujące do spec.selector.
+    metadata:
+      labels:
+        app: federated-sim-server
+
+    # spec dla Podu opisuje konfigurację techniczną kontenerów wewnątrz Podu.
+    spec:
+      containers:
+        # Nazwa kontenera wewnątrz Podu.
+        - name: federated-sim-server
+          # Obraz Docker, który ma zostać uruchomiony.
+          image: federated-sim-server:latest
+          # imagePullPolicy: Never zmusza Kubernetes do użycia lokalnie zbudowanego obrazu z cache Dockera.
+          # Zapobiega to próbom pobrania obrazu z publicznego rejestru (np. Docker Hub), co by się nie udało.
+          imagePullPolicy: Never
+          # Definicja portów, które kontener otwiera (nasłuchuje na nich).
+          ports:
+            - containerPort: 8080
+          # Definiujemy ścieżkę do zbioru walidacyjnego na serwerze
+          env:
+            - name: VAL_DATA_PATH
+              value: "/val_data"
+          # envFrom pozwala wstrzyknąć do kontenera wszystkie klucze z ConfigMap jako zmienne środowiskowe.
+          envFrom:
+            - configMapRef:
+                # Nazwa ConfigMap-a zdefiniowanego w configmap.yaml.
+                name: federated-sim-config
+          # Montujemy wolumen w kontenerze serwera
+          volumeMounts:
+            - name: val-data-volume
+              mountPath: /val_data
+      # Definiujemy wolumeny dostępne dla podów
+      volumes:
+        - name: val-data-volume
+          hostPath:
+            path: "<PROJECT_ROOT>/data/hospitals/server_val"
+            type: Directory
+---
+# apiVersion dla usług sieciowych.
+apiVersion: v1
+
+# kind określa, że tworzymy Service (Serwis/Usługę sieciową).
+# Serwis zapewnia stały adres IP i nazwę DNS dla zestawu Podów, 
+# dzięki czemu inne Pody mogą się z nimi łączyć, nawet gdy Pody są restartowane lub mają nowe IP.
+kind: Service
+
+# metadata dla serwisu.
+metadata:
+  # Nazwa serwisu. To właśnie ta nazwa będzie tłumaczona przez DNS klastra na IP serwisu.
+  # Klienci będą mogli łączyć się przez adres: http://federated-sim-server:8080
+  name: federated-sim-server
+
+# spec opisuje parametry połączenia sieciowego.
+spec:
+  # selector wskazuje, do których Podów serwis ma kierować ruch sieciowy.
+  # Ruch trafi do każdego Podu posiadającego etykietę (label) app: federated-sim-server.
+  selector:
+    app: federated-sim-server
+
+  # ports definiuje mapowanie portów serwisu na porty kontenera.
+  ports:
+      # Protokół sieciowy (domyślnie TCP).
+    - protocol: TCP
+      # port to port, na którym serwis będzie nasłuchiwał wewnątrz klastra (widoczny dla klientów).
+      port: 8080
+      # targetPort to port wewnątrz kontenera (Podu), na który ruch ma zostać przekierowany.
+      targetPort: 8080

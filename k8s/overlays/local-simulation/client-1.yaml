@@ -1,0 +1,67 @@
+# Wersja API dla wdrożenia Deployment.
+apiVersion: apps/v1
+
+# kind określa wdrożenie (Deployment) dla pierwszego klienta (szpital 1).
+kind: Deployment
+
+# metadata dla tego konkretnego klienta.
+metadata:
+  # Nazwa wdrożenia dla pierwszego szpitala.
+  name: federated-sim-client-1
+
+# spec określa parametry wdrożenia.
+spec:
+  # Chcemy uruchomić dokładnie 1 pod (instancję) dla szpitala 1.
+  replicas: 1
+
+  # Selektor dopasowujący pody zarządzane przez to wdrożenie.
+  selector:
+    matchLabels:
+      app: federated-sim-client-1
+
+  # Szablon konfiguracji Podu.
+  template:
+    metadata:
+      labels:
+        app: federated-sim-client-1
+    spec:
+      containers:
+        # Nazwa kontenera w podzie.
+        - name: federated-sim-client
+          # Obraz Docker klienta zawierający kod uczenia maszynowego.
+          image: federated-sim-client:latest
+          
+          # imagePullPolicy: Never zmusza Kubernetes do szukania obrazu w lokalnym rejestrze/cache Dockera
+          # i uniemożliwia próby pobierania go z chmury (np. z Docker Hub).
+          imagePullPolicy: Never
+          
+          # env pozwala na zdefiniowanie zmiennych środowiskowych dedykowanych dla tego kontenera.
+          env:
+            # HOSPITAL_NAME informuje kod Python w kontenerze, którym szpitalem jest dana instancja.
+            # Dzięki temu aplikacja wie, z którego podkatalogu ma pobierać i zapisywać pliki logów/wag.
+            - name: HOSPITAL_NAME
+              value: "hospital_1"
+
+          # envFrom wstrzykuje dodatkowo wspólne parametry z ConfigMap (np. adres serwera, lr, batch_size).
+          envFrom:
+            - configMapRef:
+                name: federated-sim-config
+
+          # volumeMounts mapuje zdefiniowane wolumeny (volumes) do konkretnych katalogów wewnątrz kontenera.
+          volumeMounts:
+            # Nazwa wolumenu, który chcemy zamontować (musi odpowiadać nazwie w sekcji spec.volumes).
+            - name: data-volume
+              # Ścieżka docelowa wewnątrz kontenera, pod którą aplikacja zobaczy zamontowany folder.
+              mountPath: /data
+
+      # volumes definiuje zasoby dyskowe (wolumeny) dostępne dla podów w tym wdrożeniu.
+      volumes:
+        # Nazwa wolumenu.
+        - name: data-volume
+          # hostPath pozwala zamontować katalog bezpośrednio z maszyny gospodarza (twojego systemu Windows).
+          # UWAGA: Używamy tego w środowiskach testowych/lokalnych. W środowisku produkcyjnym chmurowym używa się PersistentVolumeClaim (PVC).
+          hostPath:
+            # Ścieżka na twoim komputerze (Windows) prowadząca do danych przeznaczonosnych dla Hospital 1.
+            path: "<PROJECT_ROOT>/data/hospitals/hospital_1"
+            # Weryfikacja typu: upewnia się, że wskazana ścieżka na hoście jest istniejącym katalogiem.
+            type: Directory

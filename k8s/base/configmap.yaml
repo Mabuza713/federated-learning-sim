@@ -1,0 +1,30 @@
+# apiVersion określa wersję API Kubernetes używaną do stworzenia tego obiektu.
+# v1 to podstawowa, stabilna wersja API dla prostych zasobów takich jak ConfigMap czy Service.
+apiVersion: v1
+
+# kind określa typ zasobu, który tworzymy. 
+# ConfigMap służy do przechowywania konfiguracji w postaci par klucz-wartość, 
+# dzięki czemu aplikacja nie musi mieć zahardkodowanych ustawień.
+kind: ConfigMap
+
+# metadata zawiera dane identyfikacyjne zasobu, takie jak jego nazwa czy etykiety.
+metadata:
+  # name to unikalna w obrębie przestrzeni nazw (namespace) nazwa tej konfiguracji.
+  # Inne kontenery i wdrożenia będą się odwoływać do tego ConfigMap-a używając tej nazwy.
+  name: federated-sim-config
+
+# data to sekcja zawierająca właściwe dane konfiguracyjne (zawsze jako ciągi tekstowe - stringi).
+data:
+  # NUM_ROUNDS: Liczba rund uczenia federacyjnego (ile razy złączymy i uśrednimy wagi).
+  NUM_ROUNDS: "5"
+  # LOCAL_EPOCHS: Liczba epok treningu lokalnego, którą każdy klient wykonuje w jednej rundzie.
+  LOCAL_EPOCHS: "2"
+  # BATCH_SIZE: Rozmiar paczki danych (batch) używanej podczas treningu modeli przez klientów.
+  BATCH_SIZE: "16"
+  # LEARNING_RATE: Współczynnik uczenia (learning rate) dla optymalizatora SGD w kliencie.
+  LEARNING_RATE: "0.001"
+  # SERVER_URL: Adres URL, pod którym klienci mogą komunikować się z serwerem.
+  # federated-sim-server to nazwa Kubernetes Service serwera, która jest tłumaczona na wewnętrzne IP przez DNS Kubernetesa.
+  SERVER_URL: "http://federated-sim-server:8080"
+  # MIN_CLIENTS: Minimalna liczba klientów, którzy muszą przesłać wagi, zanim serwer uśredni model i przejdzie do kolejnej rundy.
+  MIN_CLIENTS: "3"
