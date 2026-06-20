@@ -196,6 +196,7 @@ class SubmitRequest(BaseModel):
     client_id: str
     round: int
     weights: str
+    sample_size: int = 1
 
 @app.get("/status")
 def get_status():
@@ -236,8 +237,11 @@ def submit_weights(req: SubmitRequest):
 
     try:
         weights = deserialize_weights(req.weights)
-        client_updates[req.client_id] = weights
-        print(f"Received update from client {req.client_id} for round {current_round}")
+        client_updates[req.client_id] = {
+            "weights": weights,
+            "sample_size": req.sample_size
+        }
+        print(f"Received update from client {req.client_id} for round {current_round} (sample size: {req.sample_size})")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to deserialize weights: {str(e)}")
 
@@ -246,7 +250,9 @@ def submit_weights(req: SubmitRequest):
         
         # Calculate divergence
         try:
-            current_divergence = calculate_weight_divergence(list(client_updates.values()))
+            weights_list = [update["weights"] for update in client_updates.values()]
+            sample_sizes = [update["sample_size"] for update in client_updates.values()]
+            current_divergence = calculate_weight_divergence(weights_list, sample_sizes)
             print(f"[Adaptive Selection] Calculated weight divergence for round {current_round}: {current_divergence:.4f}")
         except Exception as e:
             current_divergence = 0.0
@@ -267,8 +273,10 @@ def submit_weights(req: SubmitRequest):
             print(f"[Adaptive Selection] Divergence ({current_divergence:.4f}) <= Threshold ({DIVERGENCE_THRESHOLD:.4f}). Next round mode: FedAvg ({next_epochs} local epochs).")
 
         # Perform aggregation
-        print("Performing Federated Averaging...")
-        averaged_weights = federated_averaging(list(client_updates.values()))
+        print("Performing Federated Averaging (weighted based on patient count)...")
+        weights_list = [update["weights"] for update in client_updates.values()]
+        sample_sizes = [update["sample_size"] for update in client_updates.values()]
+        averaged_weights = federated_averaging(weights_list, sample_sizes)
         if averaged_weights is not None:
             global_model.load_state_dict(averaged_weights)
             current_round += 1

@@ -20,20 +20,29 @@ def deserialize_weights(weights_str: str) -> dict:
     buffer.seek(0)
     return pickle.load(buffer)
 
-def federated_averaging(weights_list: list) -> dict:
+def federated_averaging(weights_list: list, sample_sizes: list = None) -> dict:
     """
     Performs federated averaging (FedAvg) over a list of client state_dicts (NumPy arrays).
+    If sample_sizes is provided, performs weighted average based on sample sizes (number of patients).
     """
     if not weights_list:
         return None
+    
+    if sample_sizes is None or sum(sample_sizes) == 0:
+        sample_sizes = [1] * len(weights_list)
+        
+    total_samples = sum(sample_sizes)
+    weights_factors = [n / total_samples for n in sample_sizes]
+    
     global_state_dict = {}
     keys = weights_list[0].keys()
     for key in keys:
         arrays = [w[key] for w in weights_list]
-        global_state_dict[key] = np.mean(arrays, axis=0).astype(np.float32)
+        weighted_sum = sum(factor * arr for factor, arr in zip(weights_factors, arrays))
+        global_state_dict[key] = weighted_sum.astype(np.float32)
     return global_state_dict
 
-def calculate_weight_divergence(weights_list: list) -> float:
+def calculate_weight_divergence(weights_list: list, sample_sizes: list = None) -> float:
     """
     Computes the average relative L2 distance (divergence) between the client weights
     and their mean (aggregated weights).
@@ -42,7 +51,7 @@ def calculate_weight_divergence(weights_list: list) -> float:
         return 0.0
     
     # First, compute the mean weights (what the new global model will be)
-    mean_weights = federated_averaging(weights_list)
+    mean_weights = federated_averaging(weights_list, sample_sizes)
     if mean_weights is None:
         return 0.0
         

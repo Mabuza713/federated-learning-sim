@@ -60,11 +60,12 @@ def main():
                 train_local(model, dataloader, criterion, epochs_to_run, LEARNING_RATE, HOSPITAL_NAME, DP_NOISE_SCALE)
                 
                 # Submit weights
-                print(f"[{HOSPITAL_NAME}] Uploading weights for round {local_round}...")
+                print(f"[{HOSPITAL_NAME}] Uploading weights for round {local_round} (sample size: {len(dataloader.dataset)})...")
                 payload = {
                     "client_id": HOSPITAL_NAME,
                     "round": local_round,
-                    "weights": serialize_weights(model.state_dict())
+                    "weights": serialize_weights(model.state_dict()),
+                    "sample_size": len(dataloader.dataset)
                 }
                 
                 submit_resp = requests.post(f"{SERVER_URL}/submit", json=payload)
